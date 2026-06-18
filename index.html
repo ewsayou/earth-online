@@ -905,7 +905,7 @@ function viewUserDetail(username) {
   openModal(html);
 }
 
-function deleteUser(username) {
+async function deleteUser(username) {
   if(username===currentUser){toast('⚠️ 不能删除自己!');return;}
   if(!confirm(`确定永久删除用户「${username}」及其所有数据？此操作不可撤销。`))return;
   const users=getUsers();

@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earth Online — 地球Online</title>
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --bg-deep: #080d14;
+    --bg-panel: #0f1825;
+    --bg-card: #141e2e;
+    --border: #1e2d45;
+    --text: #c8d6e5;
+    --text-dim: #6b7d99;
+    --accent: #4da6ff;
+    --accent-glow: rgba(77,166,255,0.25);
+    --gold: #f0c060;
+    --hp: #e0556a;
+    --mp: #5b8def;
+    --stamina: #5ec47f;
+    --xp: #b080e0;
+    --danger: #e0556a;
+    --success: #5ec47f;
+    --warning: #e0a050;
+    --radius: 6px;
+    --radius-lg: 10px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  html { font-size:15px; }
+  body {
+    font-family: var(--font);
+    background: var(--bg-deep);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #stars { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+
+  .app { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:24px 16px 48px; }
+
+  /* ── Auth Views ── */
+  #view-auth { display:flex; min-height:100vh; align-items:center; justify-content:center; position:relative; z-index:1; }
+  .auth-card {
+    background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:36px 32px;
+    width:100%; max-width:380px;
+    box-shadow:0 0 40px rgba(0,0,0,0.4);
+  }
+  .auth-card .logo-row {
+    display:flex; align-items:center; gap:10px;
+    justify-content:center; margin-bottom:24px;
+  }
+  .auth-card .logo-row .logo-icon {
+    width:44px; height:44px; border-radius:var(--radius);
+    background: radial-gradient(circle at 40% 35%, #4da6ff, #1a3a6e);
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+  }
+  .auth-card h2 { font-size:1.3rem; text-align:center; margin-bottom:4px; }
+  .auth-card .subtitle { font-size:0.78rem; color:var(--text-dim); text-align:center; margin-bottom:24px; }
+  .form-group { margin-bottom:14px; }
+  .form-group label { display:block; font-size:0.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px; }
+  .form-group input {
+    width:100%; padding:10px 12px; border-radius:var(--radius);
+    border:1px solid var(--border); background:var(--bg-card);
+    color:var(--text); font-size:0.9rem; font-family:var(--font);
+    outline:none; transition:border-color 0.2s;
+  }
+  .form-group input:focus { border-color:var(--accent); }
+  .form-group .hint { font-size:0.65rem; color:var(--text-dim); margin-top:3px; }
+  .form-error { font-size:0.72rem; color:var(--danger); margin-bottom:10px; min-height:1.2em; }
+  .auth-links { text-align:center; margin-top:16px; font-size:0.78rem; color:var(--text-dim); }
+  .auth-links a { color:var(--accent); cursor:pointer; text-decoration:none; }
+  .auth-links a:hover { text-decoration:underline; }
+
+  /* ── Navbar ── */
+  .navbar {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 0; margin-bottom:8px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .navbar .brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:1rem; }
+  .navbar .brand .logo-icon {
+    width:32px; height:32px; border-radius:var(--radius);
+    background: radial-gradient(circle at 40% 35%, #4da6ff, #1a3a6e);
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .navbar .spacer { flex:1; }
+  .navbar .user-tag { font-size:0.78rem; color:var(--text-dim); }
+  .navbar .user-tag strong { color:var(--text); }
+
+  /* ── Buttons ── */
+  .btn {
+    padding:9px 18px; border-radius:var(--radius);
+    font-size:0.8rem; font-weight:600; cursor:pointer;
+    border:1px solid var(--border); background:var(--bg-card);
+    color:var(--text); transition:all 0.2s;
+    font-family:var(--font); white-space:nowrap;
+  }
+  .btn:hover { border-color:var(--accent); box-shadow:0 0 12px var(--accent-glow); color:#fff; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover { box-shadow:0 0 20px var(--accent-glow); }
+  .btn.danger { border-color:var(--danger); color:var(--danger); }
+  .btn.danger:hover { background:var(--danger); color:#fff; }
+  .btn.small { padding:5px 12px; font-size:0.7rem; }
+  .btn.wide { width:100%; }
+
+  /* ── Game Panels ── */
+  .top-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+  .panel {
+    background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:16px;
+  }
+  .panel-header {
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:12px; font-size:0.8rem; font-weight:600;
+    text-transform:uppercase; letter-spacing:0.8px; color:var(--text-dim);
+  }
+
+  .core-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+  .stat-bar-box { background:var(--bg-card); border-radius:var(--radius); padding:10px 12px; }
+  .stat-bar-box .label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-dim); margin-bottom:3px; display:flex; justify-content:space-between; }
+  .stat-bar-box .label .val { color:var(--text); font-weight:600; }
+  .bar-track { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease; }
+  .bar-fill.hp { background:var(--hp); } .bar-fill.mp { background:var(--mp); } .bar-fill.stamina { background:var(--stamina); }
+
+  .xp-row { display:flex; align-items:center; gap:10px; background:var(--bg-card); border-radius:var(--radius); padding:10px 12px; margin-bottom:12px; }
+  .xp-row .lv { font-size:1.2rem; font-weight:700; color:var(--xp); min-width:40px; }
+  .xp-row .xp-info { flex:1; }
+  .xp-row .xp-label { font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.6px; }
+  .xp-bar { height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; margin-top:3px; }
+  .xp-bar .fill { height:100%; background:linear-gradient(90deg, #b080e0, #7b5ea7); border-radius:4px; transition:width 0.4s ease; }
+
+  .gold-display { display:flex; align-items:center; gap:8px; background:linear-gradient(135deg,#1a1a0a,#2a2410); border:1px solid #3a3020; border-radius:var(--radius); padding:10px 14px; margin-bottom:12px; }
+  .gold-display .coin { font-size:1.5rem; }
+  .gold-display .gold-val { font-size:1.3rem; font-weight:700; color:var(--gold); }
+  .gold-display .gold-label { font-size:0.7rem; color:var(--text-dim); margin-left:4px; }
+
+  .attrs-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .attr-card { background:var(--bg-card); border-radius:var(--radius); padding:10px 12px; text-align:center; cursor:pointer; user-select:none; transition:border-color 0.2s,box-shadow 0.2s; border:1px solid transparent; }
+  .attr-card:hover { border-color:var(--border); box-shadow:0 0 16px var(--accent-glow); }
+  .attr-card .attr-name { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); margin-bottom:2px; }
+  .attr-card .attr-val { font-size:1.5rem; font-weight:700; color:var(--accent); transition:transform 0.15s; }
+  .attr-card:active .attr-val { transform:scale(1.15); }
+  .attr-card .attr-mod { font-size:0.7rem; color:var(--success); }
+  .attr-card .cost { font-size:0.6rem; color:var(--text-dim); margin-top:2px; }
+
+  .actions-row { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+
+  .quest-list { display:flex; flex-direction:column; gap:8px; }
+  .quest-item { display:flex; align-items:center; gap:12px; background:var(--bg-card); border-radius:var(--radius); padding:12px 14px; cursor:pointer; border:1px solid transparent; transition:all 0.2s; }
+  .quest-item:hover { border-color:var(--border); }
+  .quest-item.completed { opacity:0.6; }
+  .quest-item.completed .quest-title { text-decoration:line-through; }
+  .quest-icon { font-size:1.3rem; flex-shrink:0; }
+  .quest-body { flex:1; min-width:0; }
+  .quest-title { font-size:0.9rem; font-weight:600; }
+  .quest-desc { font-size:0.75rem; color:var(--text-dim); margin-top:1px; }
+  .quest-progress { display:flex; align-items:center; gap:6px; margin-top:4px; }
+  .quest-pbar { flex:1; height:4px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; }
+  .quest-pbar .fill { height:100%; background:var(--accent); border-radius:2px; }
+  .quest-pct { font-size:0.65rem; color:var(--text-dim); min-width:32px; text-align:right; }
+  .quest-reward { font-size:0.7rem; color:var(--gold); margin-top:3px; }
+
+  .skills-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .skill-card { background:var(--bg-card); border-radius:var(--radius); padding:12px 14px; display:flex; gap:10px; align-items:center; border:1px solid transparent; cursor:pointer; transition:all 0.2s; }
+  .skill-card:hover { border-color:var(--border); }
+  .skill-card.on-cooldown { opacity:0.5; pointer-events:none; }
+  .skill-icon { font-size:1.5rem; flex-shrink:0; }
+  .skill-info { flex:1; min-width:0; }
+  .skill-name { font-size:0.85rem; font-weight:600; }
+  .skill-desc { font-size:0.7rem; color:var(--text-dim); }
+  .skill-cd { font-size:0.65rem; color:var(--warning); margin-top:2px; }
+
+  .log-panel { margin-top:14px; }
+  .log-list { max-height:140px; overflow-y:auto; font-size:0.75rem; color:var(--text-dim); display:flex; flex-direction:column; gap:3px; }
+  .log-list .entry { padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+  .log-list .entry .time { color:var(--border); margin-right:6px; font-size:0.65rem; }
+  .log-list .entry.gold { color:var(--gold); }
+  .log-list .entry.damage { color:var(--hp); }
+  .log-list .entry.heal { color:var(--success); }
+  .log-list .entry.xp { color:var(--xp); }
+
+  .footer-bar { margin-top:18px; padding-top:12px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:var(--text-dim); gap:10px; flex-wrap:wrap; }
+  .footer-bar .api-status { display:flex; align-items:center; gap:5px; }
+  .dot { width:7px; height:7px; border-radius:50%; }
+  .dot.offline { background:var(--danger); }
+  .dot.online { background:var(--success); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Admin Panel ── */
+  .admin-table-wrap { overflow-x:auto; }
+  .admin-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .admin-table th, .admin-table td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); }
+  .admin-table th { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-dim); background:var(--bg-card); position:sticky; top:0; }
+  .admin-table tr:hover td { background:rgba(77,166,255,0.04); }
+  .admin-table .mono { font-family:'Cascadia Code','Fira Code',monospace; font-size:0.72rem; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.65rem; font-weight:600; }
+  .badge.admin { background:rgba(176,128,224,0.2); color:var(--xp); }
+  .badge.user { background:rgba(77,166,255,0.15); color:var(--accent); }
+  .empty-state { text-align:center; padding:40px 20px; color:var(--text-dim); font-size:0.85rem; }
+
+  /* ── Toast ── */
+  .toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--bg-card); border:1px solid var(--accent); border-radius:var(--radius); padding:10px 20px; font-size:0.8rem; font-weight:600; z-index:100; opacity:0; pointer-events:none; transition:opacity 0.25s,transform 0.25s; box-shadow:0 4px 24px var(--accent-glow); }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(4px); }
+
+  /* ── Modal ── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:50; display:flex; align-items:center; justify-content:center; }
+  .modal { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; width:90%; max-width:500px; max-height:80vh; overflow-y:auto; }
+  .modal h3 { margin-bottom:16px; font-size:1rem; }
+  .modal .info-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.82rem; }
+  .modal .info-row .key { color:var(--text-dim); }
+  .modal .modal-actions { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
+
+  @media (max-width:700px) {
+    .top-row { grid-template-columns:1fr; }
+    .core-stats { grid-template-columns:1fr; }
+    .attrs-grid { grid-template-columns:repeat(2,1fr); }
+    .skills-grid { grid-template-columns:1fr; }
+    .navbar { gap:6px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<!-- ═══════════════ AUTH VIEW ═══════════════ -->
+<div id="view-auth" style="display:none">
+  <div class="auth-card">
+    <div class="logo-row">
+      <div class="logo-icon">🌍</div>
+    </div>
+    <h2 id="auth-title">登录 Earth Online</h2>
+    <div class="subtitle" id="auth-subtitle">yswy.club — 真实人类属性面板</div>
+    <div class="form-error" id="auth-error"></div>
+    <div class="form-group">
+      <label>用户名</label>
+      <input type="text" id="auth-username" placeholder="输入用户名" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="auth-password" placeholder="输入密码" autocomplete="current-password">
+    </div>
+    <div class="form-group" id="auth-confirm-group" style="display:none">
+      <label>确认密码</label>
+      <input type="password" id="auth-confirm" placeholder="再次输入密码">
+    </div>
+    <div class="form-group" id="auth-admin-group" style="display:none">
+      <label>
+        <input type="checkbox" id="auth-isadmin" style="width:auto;margin-right:6px;">
+        注册为管理员
+      </label>
+      <div class="hint">管理员可以查看和编辑所有用户数据</div>
+    </div>
+    <button class="btn primary wide" id="auth-submit-btn" onclick="handleAuth()">登 录</button>
+    <div class="auth-links">
+      <span id="auth-switch-text">还没有账号？</span>
+      <a id="auth-switch-link" onclick="toggleAuthMode()">立即注册</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ GAME VIEW ═══════════════ -->
+<div id="view-game" style="display:none">
+  <div class="app">
+    <!-- Navbar -->
+    <div class="navbar">
+      <div class="brand">
+        <div class="logo-icon">🌍</div>
+        <span>Earth Online</span>
+      </div>
+      <div class="spacer"></div>
+      <span class="user-tag">👤 <strong id="nav-username"></strong></span>
+      <button class="btn small" id="nav-admin-btn" style="display:none" onclick="switchView('admin')">⚙️ 管理</button>
+      <button class="btn small" onclick="switchView('game')" id="nav-game-btn" style="display:none">🎮 游戏</button>
+      <button class="btn small danger" onclick="logout()">🚪 登出</button>
+    </div>
+
+    <!-- Game content (same structure as before) -->
+    <div class="top-row">
+      <div class="panel">
+        <div class="panel-header"><span>⚔️</span> 核心状态</div>
+        <div class="core-stats">
+          <div class="stat-bar-box">
+            <div class="label"><span>❤️ HP</span><span class="val" id="hp-val">100/100</span></div>
+            <div class="bar-track"><div class="bar-fill hp" id="hp-bar" style="width:100%"></div></div>
+          </div>
+          <div class="stat-bar-box">
+            <div class="label"><span>💎 MP</span><span class="val" id="mp-val">50/50</span></div>
+            <div class="bar-track"><div class="bar-fill mp" id="mp-bar" style="width:100%"></div></div>
+          </div>
+          <div class="stat-bar-box">
+            <div class="label"><span>⚡ 体力</span><span class="val" id="stamina-val">80/80</span></div>
+            <div class="bar-track"><div class="bar-fill stamina" id="stamina-bar" style="width:100%"></div></div>
+          </div>
+        </div>
+        <div class="xp-row">
+          <div class="lv" id="level">Lv.1</div>
+          <div class="xp-info">
+            <div class="xp-label">经验值</div>
+            <div class="xp-bar"><div class="fill" id="xp-bar" style="width:0%"></div></div>
+          </div>
+          <div style="font-size:0.7rem;color:var(--xp);white-space:nowrap" id="xp-text">0 / 100</div>
+        </div>
+        <div class="gold-display">
+          <span class="coin">🪙</span>
+          <span class="gold-val" id="gold">0</span>
+          <span class="gold-label">金币</span>
+        </div>
+        <div class="actions-row">
+          <button class="btn primary" onclick="doWork()">⚒️ 工作 (+XP)</button>
+          <button class="btn" onclick="doRest()">🛌 休息 (+HP)</button>
+          <button class="btn" onclick="doMeditate()">🧘 冥想 (+MP)</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>📊</span> 属性加点 <span style="margin-left:auto;font-size:0.65rem;color:var(--gold)" id="pts-display">剩余: 0 点</span></div>
+        <div class="attrs-grid" id="attrs-grid"></div>
+      </div>
+    </div>
+
+    <div class="top-row">
+      <div class="panel">
+        <div class="panel-header"><span>📜</span> 活跃任务</div>
+        <div class="quest-list" id="quest-list"></div>
+        <button class="btn" style="margin-top:10px;width:100%" onclick="refreshQuests()">🔄 刷新任务</button>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span>✨</span> 技能</div>
+        <div class="skills-grid" id="skills-grid"></div>
+      </div>
+    </div>
+
+    <div class="panel log-panel">
+      <div class="panel-header"><span>📋</span> 事件日志</div>
+      <div class="log-list" id="log-list"></div>
+    </div>
+
+    <div class="footer-bar">
+      <span>🌍 Earth Online v2.0 · yswy.club</span>
+      <div class="api-status">
+        <span>后端 API</span><div class="dot offline" id="api-dot"></div><span id="api-text">离线模式</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN VIEW ═══════════════ -->
+<div id="view-admin" style="display:none">
+  <div class="app">
+    <div class="navbar">
+      <div class="brand">
+        <div class="logo-icon">🌍</div>
+        <span>Earth Online</span>
+      </div>
+      <div class="spacer"></div>
+      <span class="user-tag">👤 <strong id="nav-admin-username"></strong> <span class="badge admin">管理员</span></span>
+      <button class="btn small" onclick="switchView('game')">🎮 我的角色</button>
+      <button class="btn small danger" onclick="logout()">🚪 登出</button>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-header"><span>👥</span> 用户管理 · <span id="admin-user-count">0</span> 位注册用户</div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>角色</th>
+              <th>等级</th>
+              <th>金币</th>
+              <th>HP</th>
+              <th>力量</th>
+              <th>智力</th>
+              <th>注册时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="admin-user-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="admin-empty" style="display:none">暂无注册用户</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span>📊</span> 统计概览</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="admin-stats-grid">
+        <div class="stat-bar-box"><div class="label">总用户</div><div style="font-size:1.5rem;font-weight:700;color:var(--accent)" id="stat-total">0</div></div>
+        <div class="stat-bar-box"><div class="label">总金币流通</div><div style="font-size:1.5rem;font-weight:700;color:var(--gold)" id="stat-gold">0</div></div>
+        <div class="stat-bar-box"><div class="label">平均等级</div><div style="font-size:1.5rem;font-weight:700;color:var(--xp)" id="stat-avg-lv">0</div></div>
+        <div class="stat-bar-box"><div class="label">最高等级</div><div style="font-size:1.5rem;font-weight:700;color:var(--success)" id="stat-max-lv">0</div></div>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span>🌍 Earth Online Admin Panel · yswy.club</span>
+      <span id="admin-clock"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL ═══════════════ -->
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="closeModal(event)">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- ═══════════════ TOAST ═══════════════ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ====================== STORAGE KEYS ======================
+const USERS_KEY = 'earth_online_users';
+const SESSION_KEY = 'earth_online_session';
+
+// ====================== BACKEND API CONFIG ======================
+const API_BASE = 'https://api.yswy.club';
+let apiOnline = false;
+
+async function apiCall(path, options = {}) {
+  try {
+    const resp = await fetch(API_BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+async function syncStateToAPI() {
+  if (!apiOnline || !currentUser) return;
+  await apiCall('/api/user/' + encodeURIComponent(currentUser), {
+    method: 'PUT',
+    body: JSON.stringify({ state })
+  });
+}
+
+// ====================== CRYPTO (simple hash) ======================
+async function hashPassword(pw) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode('earth_online_salt_' + pw + '_v2');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ====================== USER STORE ======================
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; }
+  catch(e) { return {}; }
+}
+function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+function getSession() { return sessionStorage.getItem(SESSION_KEY); }
+function setSession(username) { sessionStorage.setItem(SESSION_KEY, username); }
+function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
+
+// ====================== DEFAULT GAME STATE ======================
+const DEFAULT_STATE = {
+  level:1, xp:0, xpToNext:100,
+  hp:100, maxHp:100,
+  mp:50, maxMp:50,
+  stamina:80, maxStamina:80,
+  gold:0, attrPoints:3,
+  attrs:{ str:5, dex:5, con:5, int:5, wis:5, cha:5 },
+  quests:[], skills:[], log:[]
+};
+
+function newUserState() {
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+
+// ====================== CURRENT STATE ======================
+let currentUser = null;
+let state = null;
+
+function loadCurrentUser() {
+  const username = getSession();
+  if (!username) return false;
+  const users = getUsers();
+  if (!users[username]) { clearSession(); return false; }
+  currentUser = username;
+  state = users[username].state;
+  if (!state) { state = newUserState(); saveCurrentState(); }
+  return true;
+}
+
+function saveCurrentState() {
+  if (!currentUser) return;
+  const users = getUsers();
+  if (users[currentUser]) {
+    users[currentUser].state = state;
+    saveUsers(users);
+  }
+  syncStateToAPI();
+}
+
+function isAdmin() {
+  if (!currentUser) return false;
+  const users = getUsers();
+  return users[currentUser]?.isAdmin === true;
+}
+
+// ====================== AUTH ======================
+let authMode = 'login'; // 'login' | 'register'
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  document.getElementById('auth-title').textContent = authMode === 'login' ? '登录 Earth Online' : '注册新账号';
+  document.getElementById('auth-submit-btn').textContent = authMode === 'login' ? '登 录' : '注 册';
+  document.getElementById('auth-switch-text').textContent = authMode === 'login' ? '还没有账号？' : '已有账号？';
+  document.getElementById('auth-switch-link').textContent = authMode === 'login' ? '立即注册' : '去登录';
+  document.getElementById('auth-confirm-group').style.display = authMode === 'register' ? '' : 'none';
+  document.getElementById('auth-admin-group').style.display = authMode === 'register' ? '' : 'none';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-password').value = '';
+  document.getElementById('auth-confirm').value = '';
+}
+
+async function handleAuth() {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+
+  if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return; }
+  if (username.length < 2) { errEl.textContent = '用户名至少2个字符'; return; }
+  if (password.length < 3) { errEl.textContent = '密码至少3个字符'; return; }
+  if (!/^[a-zA-Z0-9_\-\u4e00-\u9fff]+$/.test(username)) { errEl.textContent = '用户名只能包含字母、数字、中文、下划线和连字符'; return; }
+
+  const users = getUsers();
+  const pwHash = await hashPassword(password);
+
+  if (authMode === 'register') {
+    const confirm = document.getElementById('auth-confirm').value;
+    if (password !== confirm) { errEl.textContent = '两次密码输入不一致'; return; }
+    if (users[username]) { errEl.textContent = '该用户名已被注册'; return; }
+
+    // Check if this is the first user ever — make them admin
+    const isFirstUser = Object.keys(users).length === 0;
+    const isAdminCheckbox = document.getElementById('auth-isadmin').checked;
+    const isAdminUser = isFirstUser || isAdminCheckbox;
+
+    // Try API registration
+    if (apiOnline) {
+      const apiResult = await apiCall('/api/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, isAdmin: isAdminUser })
+      });
+    }
+
+    users[username] = {
+      username,
+      passwordHash: pwHash,
+      isAdmin: isAdminUser,
+      createdAt: new Date().toISOString(),
+      state: newUserState()
+    };
+    saveUsers(users);
+    setSession(username);
+    currentUser = username;
+    state = users[username].state;
+    toast(isAdminUser ? '🎉 管理员账号注册成功！' : '🎉 注册成功！欢迎来到 Earth Online');
+    showAppView();
+    return;
+  }
+
+  // Login
+  const user = users[username];
+  if (!user) { errEl.textContent = '用户名不存在'; return; }
+  if (user.passwordHash !== pwHash) { errEl.textContent = '密码错误'; return; }
+
+  setSession(username);
+  currentUser = username;
+  state = user.state;
+  toast('👋 欢迎回来，' + username);
+  showAppView();
+}
+
+async function logout() {
+  if (confirm('确定要登出吗？未保存的进度将丢失。')) {
+    clearSession();
+    currentUser = null;
+    state = null;
+    showAuthView();
+  }
+}
+
+// ====================== VIEW SWITCHING ======================
+function hideAll() {
+  document.getElementById('view-auth').style.display = 'none';
+  document.getElementById('view-game').style.display = 'none';
+  document.getElementById('view-admin').style.display = 'none';
+}
+
+function showAuthView() {
+  hideAll();
+  authMode = 'login';
+  document.getElementById('auth-title').textContent = '登录 Earth Online';
+  document.getElementById('auth-submit-btn').textContent = '登 录';
+  document.getElementById('auth-switch-text').textContent = '还没有账号？';
+  document.getElementById('auth-switch-link').textContent = '立即注册';
+  document.getElementById('auth-confirm-group').style.display = 'none';
+  document.getElementById('auth-admin-group').style.display = 'none';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-username').value = '';
+  document.getElementById('auth-password').value = '';
+  document.getElementById('view-auth').style.display = 'flex';
+}
+
+function showAppView() {
+  hideAll();
+  document.getElementById('nav-username').textContent = currentUser;
+  const admin = isAdmin();
+  document.getElementById('nav-admin-btn').style.display = admin ? '' : 'none';
+  document.getElementById('nav-game-btn').style.display = 'none';
+
+  renderAll();
+  document.getElementById('view-game').style.display = '';
+}
+
+function showAdminView() {
+  hideAll();
+  document.getElementById('nav-admin-username').textContent = currentUser;
+  document.getElementById('view-admin').style.display = '';
+  renderAdmin();
+}
+
+function switchView(target) {
+  if (target === 'admin') {
+    if (!isAdmin()) { toast('⚠️ 无管理员权限'); return; }
+    showAdminView();
+  } else if (target === 'game') {
+    loadCurrentUser();
+    showAppView();
+  }
+}
+
+// ====================== GAME HELPERS ======================
+const attrNames = { str:'力量', dex:'敏捷', con:'体质', int:'智力', wis:'智慧', cha:'魅力' };
+const attrIcons = { str:'💪', dex:'🏃', con:'🛡️', int:'🧠', wis:'🦉', cha:'💬' };
+
+function mod(v) { const m=Math.floor((v-10)/2); return m>=0?'+'+m:''+m; }
+function modVal(v) { return Math.floor((v-10)/2); }
+
+function addLog(msg, cls='') {
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  if (!state.log) state.log = [];
+  state.log.unshift({time,msg,cls});
+  if (state.log.length>50) state.log.length=50;
+  renderLog();
+}
+
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._tid); el._tid=setTimeout(()=>el.classList.remove('show'),1800);
+}
+
+// ====================== QUESTS ======================
+const QUEST_POOL = [
+  { icon:'📖', title:'阅读书籍', desc:'读完一本非虚构类书籍', target:1, unit:'本', reward:50, xp:40 },
+  { icon:'🏃', title:'晨跑打卡', desc:'连续三天早起跑步', target:3, unit:'天', reward:30, xp:25 },
+  { icon:'💧', title:'饮水挑战', desc:'今天喝够8杯水', target:8, unit:'杯', reward:20, xp:20 },
+  { icon:'🧹', title:'打扫房间', desc:'整理并打扫你的居住空间', target:1, unit:'次', reward:25, xp:30 },
+  { icon:'🍳', title:'自己做饭', desc:'亲手做一顿饭', target:1, unit:'次', reward:35, xp:30 },
+  { icon:'✍️', title:'写日记', desc:'写一篇300字以上的日记', target:1, unit:'篇', reward:20, xp:25 },
+  { icon:'🎯', title:'专注工作', desc:'完成90分钟深度工作', target:90, unit:'分钟', reward:40, xp:35 },
+  { icon:'🧘', title:'冥想练习', desc:'进行15分钟正念冥想', target:15, unit:'分钟', reward:25, xp:20 },
+  { icon:'🌿', title:'户外散步', desc:'出门散步30分钟', target:30, unit:'分钟', reward:20, xp:15 },
+  { icon:'💤', title:'早睡挑战', desc:'晚上11点前上床睡觉', target:1, unit:'次', reward:30, xp:25 },
+];
+
+function generateQuests() {
+  const shuffled=[...QUEST_POOL].sort(()=>Math.random()-0.5);
+  return shuffled.slice(0,4).map((q,i)=>({...q,id:`q${Date.now()}_${i}`,progress:0,completed:false}));
+}
+
+function refreshQuests() {
+  state.quests=generateQuests();
+  saveCurrentState(); renderQuests();
+  addLog('任务列表已刷新'); toast('📜 任务已刷新');
+}
+
+// ====================== SKILLS ======================
+const SKILL_DEFS = [
+  { id:'focus', icon:'🎯', name:'深度专注', desc:'回复20点MP，冷却60秒', cd:60, effect(){ state.mp=Math.min(state.maxMp,state.mp+20); addLog('深度专注 +20 MP','heal'); } },
+  { id:'surge', icon:'⚡', name:'肾上腺素', desc:'回复30点HP，冷却90秒', cd:90, effect(){ state.hp=Math.min(state.maxHp,state.hp+30); addLog('肾上腺素 +30 HP','heal'); } },
+  { id:'grind', icon:'💎', name:'高效劳作', desc:'立即获得15金币，冷却45秒', cd:45, effect(){ state.gold+=15; addLog('高效劳作 +15💰','gold'); } },
+  { id:'insight', icon:'🔮', name:'顿悟', desc:'获得50点XP，冷却120秒', cd:120, effect(){ gainXp(50); addLog('顿悟 +50 XP','xp'); } },
+];
+
+// ====================== ACTIONS ======================
+function gainXp(amount) {
+  const intMod=modVal(state.attrs.int);
+  const bonus=Math.floor(amount*(intMod*0.05));
+  const total=amount+bonus;
+  state.xp+=total;
+  while(state.xp>=state.xpToNext) {
+    state.xp-=state.xpToNext; state.level++; state.xpToNext=Math.floor(state.xpToNext*1.4);
+    state.attrPoints++; state.maxHp+=10; state.hp=state.maxHp;
+    state.maxMp+=5; state.mp=state.maxMp; state.maxStamina+=5; state.stamina=state.maxStamina;
+    toast(`🎉 升级! Lv.${state.level}`); addLog(`升级至 Lv.${state.level}! +1属性点`,'xp');
+  }
+  saveCurrentState(); renderCoreStats();
+}
+
+function doWork() {
+  if(state.stamina<10){toast('⚡ 体力不足!');return;}
+  state.stamina-=10;
+  const goldEarned=5+Math.floor(Math.random()*8)+modVal(state.attrs.str);
+  state.gold+=goldEarned;
+  const xpEarned=15+Math.floor(Math.random()*10);
+  gainXp(xpEarned);
+  addLog(`工作 +${goldEarned}💰 +${xpEarned}XP`,'gold');
+  state.quests.forEach(q=>{
+    if(!q.completed&&Math.random()<0.3){
+      q.progress=Math.min(q.target,q.progress+1);
+      if(q.progress>=q.target){q.completed=true;state.gold+=q.reward;gainXp(q.xp);toast('✅ '+q.title);addLog(`完成「${q.title}」+${q.reward}💰 +${q.xp}XP`,'gold');}
+    }
+  });
+  saveCurrentState(); renderAll();
+}
+
+function doRest() {
+  const healed=15+modVal(state.attrs.con)*2;
+  state.hp=Math.min(state.maxHp,state.hp+healed);
+  state.stamina=Math.min(state.maxStamina,state.stamina+5);
+  addLog(`休息 +${healed} HP +5 体力`,'heal');
+  saveCurrentState(); renderAll(); toast('🛌 休息完毕');
+}
+
+function doMeditate() {
+  const recovered=10+modVal(state.attrs.wis)*2;
+  state.mp=Math.min(state.maxMp,state.mp+recovered);
+  addLog(`冥想 +${recovered} MP`,'heal');
+  saveCurrentState(); renderAll(); toast('🧘 冥想完毕');
+}
+
+function buyAttr(attrKey) {
+  if(state.attrPoints<=0){toast('没有可用属性点!');return;}
+  const cost=Math.floor(state.attrs[attrKey]*15);
+  if(state.gold<cost){toast(`金币不足! 需要${cost}💰`);return;}
+  state.gold-=cost; state.attrs[attrKey]++; state.attrPoints--;
+  addLog(`${attrNames[attrKey]} +1 (${cost}💰)`);
+  toast(`${attrNames[attrKey]} +1!`);
+  saveCurrentState(); renderAll();
+}
+
+function useSkill(skillId) {
+  const now=Date.now();
+  if(!state.skillCooldowns)state.skillCooldowns={};
+  if(state.skillCooldowns[skillId]&&state.skillCooldowns[skillId]>now)return;
+  const def=SKILL_DEFS.find(s=>s.id===skillId); if(!def)return;
+  def.effect();
+  state.skillCooldowns[skillId]=now+def.cd*1000;
+  saveCurrentState(); renderAll(); toast('✨ '+def.name);
+}
+
+// ====================== RENDER ======================
+function renderAll() { renderCoreStats(); renderAttrs(); renderQuests(); renderSkills(); renderLog(); }
+function renderCoreStats() {
+  document.getElementById('hp-val').textContent=`${state.hp}/${state.maxHp}`;
+  document.getElementById('hp-bar').style.width=`${(state.hp/state.maxHp)*100}%`;
+  document.getElementById('mp-val').textContent=`${state.mp}/${state.maxMp}`;
+  document.getElementById('mp-bar').style.width=`${(state.mp/state.maxMp)*100}%`;
+  document.getElementById('stamina-val').textContent=`${state.stamina}/${state.maxStamina}`;
+  document.getElementById('stamina-bar').style.width=`${(state.stamina/state.maxStamina)*100}%`;
+  document.getElementById('level').textContent=`Lv.${state.level}`;
+  document.getElementById('xp-bar').style.width=`${(state.xp/state.xpToNext)*100}%`;
+  document.getElementById('xp-text').textContent=`${state.xp} / ${state.xpToNext}`;
+  document.getElementById('gold').textContent=state.gold;
+  document.getElementById('pts-display').textContent=`剩余: ${state.attrPoints} 点`;
+}
+function renderAttrs() {
+  document.getElementById('attrs-grid').innerHTML=Object.entries(state.attrs).map(([k,v])=>`
+    <div class="attr-card" onclick="buyAttr('${k}')" title="点击加点 (${Math.floor(v*15)}💰)">
+      <div class="attr-name">${attrIcons[k]} ${attrNames[k]}</div>
+      <div class="attr-val">${v}</div><div class="attr-mod">${mod(v)}</div>
+      <div class="cost">${Math.floor(v*15)}💰 / 点</div>
+    </div>`).join('');
+}
+function renderQuests() {
+  if(!state.quests||!state.quests.length)state.quests=generateQuests();
+  document.getElementById('quest-list').innerHTML=state.quests.map(q=>`
+    <div class="quest-item ${q.completed?'completed':''}" onclick="advanceQuest('${q.id}')">
+      <div class="quest-icon">${q.icon}</div>
+      <div class="quest-body">
+        <div class="quest-title">${q.title}</div>
+        <div class="quest-desc">${q.desc}</div>
+        <div class="quest-progress">
+          <div class="quest-pbar"><div class="fill" style="width:${(q.progress/q.target)*100}%"></div></div>
+          <div class="quest-pct">${q.progress}/${q.target}${q.unit||''}</div>
+        </div>
+        <div class="quest-reward">奖励: ${q.reward}💰 + ${q.xp}XP</div>
+      </div>
+    </div>`).join('');
+}
+function advanceQuest(qid) {
+  const q=state.quests.find(q=>q.id===qid); if(!q||q.completed)return;
+  q.progress=Math.min(q.target,q.progress+1);
+  if(q.progress>=q.target){q.completed=true;state.gold+=q.reward;gainXp(q.xp);toast('✅ '+q.title);addLog(`完成「${q.title}」+${q.reward}💰 +${q.xp}XP`,'gold');}
+  saveCurrentState(); renderQuests(); renderCoreStats();
+}
+function renderSkills() {
+  const now=Date.now();
+  if(!state.skillCooldowns)state.skillCooldowns={};
+  document.getElementById('skills-grid').innerHTML=SKILL_DEFS.map(s=>{
+    const cdRemain=state.skillCooldowns[s.id]?Math.max(0,Math.ceil((state.skillCooldowns[s.id]-now)/1000)):0;
+    const onCd=cdRemain>0;
+    return`<div class="skill-card ${onCd?'on-cooldown':''}" onclick="useSkill('${s.id}')">
+      <div class="skill-icon">${s.icon}</div>
+      <div class="skill-info"><div class="skill-name">${s.name}</div><div class="skill-desc">${s.desc}</div>
+      ${onCd?`<div class="skill-cd">冷却 ${cdRemain}s</div>`:''}</div></div>`;
+  }).join('');
+}
+function renderLog() {
+  const list=document.getElementById('log-list');
+  list.innerHTML=(state.log||[]).slice(0,20).map(e=>`<div class="entry ${e.cls||''}"><span class="time">${e.time}</span>${e.msg}</div>`).join('');
+}
+
+// ====================== ADMIN ======================
+function getSortedUsers() {
+  const users=getUsers();
+  return Object.values(users).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+}
+
+async function fetchUsersFromAPI() {
+  const data = await apiCall('/api/users');
+  if (data && data.users) return Object.values(data.users);
+  return null;
+}
+
+async function renderAdmin() {
+  const apiUsers = apiOnline ? await fetchUsersFromAPI() : null;
+  const users = apiUsers || getSortedUsers();
+  const tbody=document.getElementById('admin-user-table');
+  const emptyEl=document.getElementById('admin-empty');
+  document.getElementById('admin-user-count').textContent=users.length;
+
+  if(!users.length) { tbody.innerHTML=''; emptyEl.style.display=''; }
+  else { emptyEl.style.display='none'; }
+
+  tbody.innerHTML=users.map(u=>{
+    const s=u.state||{};
+    const attrs=s.attrs||{};
+    return `<tr>
+      <td><strong>${escHtml(u.username)}</strong></td>
+      <td><span class="badge ${u.isAdmin?'admin':'user'}">${u.isAdmin?'管理员':'玩家'}</span></td>
+      <td>Lv.${s.level||1}</td>
+      <td>🪙 ${s.gold||0}</td>
+      <td>❤️ ${s.hp||100}/${s.maxHp||100}</td>
+      <td>${attrs.str||5}</td>
+      <td>${attrs.int||5}</td>
+      <td>${fmtDate(u.createdAt)}</td>
+      <td>
+        <button class="btn small" onclick="viewUserDetail('${u.username}')">📋 详情</button>
+        ${!u.isAdmin?`<button class="btn small danger" onclick="deleteUser('${u.username}')">🗑️</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Stats
+  const totalGold=users.reduce((sum,u)=>sum+(u.state?.gold||0),0);
+  const avgLv=users.length?Math.round(users.reduce((sum,u)=>sum+(u.state?.level||1),0)/users.length):0;
+  const maxLv=users.length?Math.max(...users.map(u=>u.state?.level||1)):0;
+  document.getElementById('stat-total').textContent=users.length;
+  document.getElementById('stat-gold').textContent=totalGold;
+  document.getElementById('stat-avg-lv').textContent=avgLv;
+  document.getElementById('stat-max-lv').textContent=maxLv;
+
+  // Clock
+  document.getElementById('admin-clock').textContent=new Date().toLocaleString('zh-CN');
+}
+
+function viewUserDetail(username) {
+  const users=getUsers();
+  const u=users[username]; if(!u)return;
+  const s=u.state||{};
+  const attrs=s.attrs||{};
+  const html=`<h3>👤 ${escHtml(username)} 的详细信息</h3>
+    <div class="info-row"><span class="key">角色</span><span>${u.isAdmin?'管理员':'玩家'}</span></div>
+    <div class="info-row"><span class="key">等级</span><span>Lv.${s.level||1} (${s.xp||0}/${s.xpToNext||100} XP)</span></div>
+    <div class="info-row"><span class="key">金币</span><span>🪙 ${s.gold||0}</span></div>
+    <div class="info-row"><span class="key">HP</span><span>❤️ ${s.hp||100}/${s.maxHp||100}</span></div>
+    <div class="info-row"><span class="key">MP</span><span>💎 ${s.mp||50}/${s.maxMp||50}</span></div>
+    <div class="info-row"><span class="key">体力</span><span>⚡ ${s.stamina||80}/${s.maxStamina||80}</span></div>
+    <div class="info-row"><span class="key">可用属性点</span><span>${s.attrPoints||0} 点</span></div>
+    <div style="margin-top:12px;font-weight:600;font-size:0.8rem;color:var(--text-dim)">属性</div>
+    ${Object.entries(attrNames).map(([k,v])=>`<div class="info-row"><span class="key">${attrIcons[k]} ${v}</span><span>${attrs[k]||5} (${mod(attrs[k]||5)})</span></div>`).join('')}
+    <div style="margin-top:12px;font-weight:600;font-size:0.8rem;color:var(--text-dim)">最近日志</div>
+    ${(s.log||[]).slice(0,8).map(e=>`<div class="info-row"><span class="key">${e.time}</span><span>${e.msg}</span></div>`).join('')||'<div class="info-row"><span class="key">—</span><span>无日志</span></div>'}
+    <div class="modal-actions">
+      <button class="btn small danger" onclick="deleteUser('${username}');closeModal()">🗑️ 删除用户</button>
+      <button class="btn small" onclick="closeModal()">关闭</button>
+    </div>`;
+  openModal(html);
+}
+
+function deleteUser(username) {
+  if(username===currentUser){toast('⚠️ 不能删除自己!');return;}
+  if(!confirm(`确定永久删除用户「${username}」及其所有数据？此操作不可撤销。`))return;
+  const users=getUsers();
+  delete users[username];
+  saveUsers(users);
+  if (apiOnline) await apiCall('/api/user/' + encodeURIComponent(username), { method: 'DELETE' });
+  toast(`已删除用户: ${username}`);
+  renderAdmin();
+}
+
+function escHtml(s) {
+  const d=document.createElement('div'); d.textContent=s; return d.innerHTML;
+}
+function fmtDate(iso) {
+  if(!iso) return '—';
+  return new Date(iso).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML=html;
+  document.getElementById('modal-overlay').style.display='';
+}
+function closeModal(e) {
+  if(e&&e.target!==document.getElementById('modal-overlay'))return;
+  document.getElementById('modal-overlay').style.display='none';
+}
+
+// ====================== STARFIELD ======================
+function initStars() {
+  const c=document.getElementById('stars'), ctx=c.getContext('2d');
+  let stars=[];
+  function resize(){
+    c.width=window.innerWidth; c.height=window.innerHeight;
+    stars=Array.from({length:120},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.5+0.3,a:Math.random(),sp:Math.random()*0.008+0.003}));
+  }
+  resize(); window.addEventListener('resize',resize);
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    for(const s of stars){s.a+=s.sp;if(s.a>1)s.a=0;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(180,210,255,${Math.sin(s.a*Math.PI)*0.7})`;ctx.fill();}
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ====================== API PROBE ======================
+async function probeBackend() {
+  const dot=document.getElementById('api-dot'), txt=document.getElementById('api-text');
+  try{await fetch('https://api.yswy.club/health',{mode:'no-cors',signal:AbortSignal.timeout(3000)});dot.className='dot online';txt.textContent='在线 (API)';}
+  catch(e){dot.className='dot offline';txt.textContent='离线模式';}
+}
+
+// ====================== COOLDOWN TICKER ======================
+function tickCooldowns() { if(document.getElementById('view-game').style.display!=='none') renderSkills(); }
+
+// ====================== INIT ======================
+function init() {
+  initStars();
+  const username = getSession();
+  if (username) {
+    if (loadCurrentUser()) {
+      if (isAdmin()) showAdminView();
+      else showAppView();
+      return;
+    }
+  }
+  showAuthView();
+  setInterval(tickCooldowns, 1000);
+  setInterval(()=>{if(state){state.stamina=Math.min(state.maxStamina,state.stamina+1);renderCoreStats();saveCurrentState();}},30000);
+  probeBackend();
+}
+init();
+</script>
+</body>
+</html>

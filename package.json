@@ -1,0 +1,13 @@
+{
+  "name": "earth-online-api",
+  "version": "2.0.0",
+  "description": "Earth Online backend API with SQLite storage",
+  "main": "api-server.js",
+  "scripts": {
+    "start": "node api-server.js",
+    "dev": "node --watch api-server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  }
+}

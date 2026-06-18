@@ -482,9 +482,33 @@ function newUserState() {
 let currentUser = null;
 let state = null;
 
-function loadCurrentUser() {
+async function loadCurrentUser() {
   const username = getSession();
   if (!username) return false;
+
+  if (apiOnline) {
+    const apiResult = await apiCall('/api/user/' + encodeURIComponent(username));
+    if (apiResult && apiResult.ok && apiResult.user) {
+      currentUser = username;
+      state = apiResult.user.state || newUserState();
+      const users = getUsers();
+      if (!users[username]) {
+        users[username] = {
+          username,
+          passwordHash: '',
+          isAdmin: apiResult.user.isAdmin || false,
+          createdAt: apiResult.user.createdAt || new Date().toISOString(),
+          state: state
+        };
+      } else {
+        users[username].state = state;
+        users[username].isAdmin = apiResult.user.isAdmin || users[username].isAdmin;
+      }
+      saveUsers(users);
+      return true;
+    }
+  }
+
   const users = getUsers();
   if (!users[username]) { clearSession(); return false; }
   currentUser = username;
@@ -548,20 +572,21 @@ async function handleAuth() {
     const isAdminCheckbox = document.getElementById('auth-isadmin').checked;
     const isAdminUser = isFirstUser || isAdminCheckbox;
 
-    // Try API registration
+    let apiUser = null;
     if (apiOnline) {
       const apiResult = await apiCall('/api/register', {
         method: 'POST',
         body: JSON.stringify({ username, password, isAdmin: isAdminUser })
       });
+      if (apiResult && apiResult.ok) apiUser = apiResult.user;
     }
 
     users[username] = {
       username,
-      passwordHash: pwHash,
-      isAdmin: isAdminUser,
-      createdAt: new Date().toISOString(),
-      state: newUserState()
+      passwordHash: apiOnline && apiUser ? '' : pwHash,
+      isAdmin: apiUser ? apiUser.isAdmin : isAdminUser,
+      createdAt: apiUser ? apiUser.createdAt : new Date().toISOString(),
+      state: apiUser ? apiUser.state : newUserState()
     };
     saveUsers(users);
     setSession(username);
@@ -572,15 +597,45 @@ async function handleAuth() {
     return;
   }
 
-  // Login
+  // Login (API-first)
+  if (apiOnline) {
+    const apiResult = await apiCall('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    if (apiResult && apiResult.ok) {
+      const apiUser = apiResult.user;
+      users[username] = {
+        username,
+        passwordHash: await hashPassword(password),
+        isAdmin: apiUser.isAdmin || false,
+        createdAt: apiUser.createdAt || new Date().toISOString(),
+        state: apiUser.state || newUserState()
+      };
+      saveUsers(users);
+      setSession(username);
+      currentUser = username;
+      state = users[username].state;
+      toast('👋 欢迎回来，' + username + ' (云端同步)');
+      showAppView();
+      return;
+    }
+    if (apiResult && apiResult.error) {
+      errEl.textContent = apiResult.error;
+    } else {
+      errEl.textContent = '后端连接失败，请检查 api.yswy.club 是否在线';
+    }
+    return;
+  }
+
+  // Offline fallback
   const user = users[username];
   if (!user) { errEl.textContent = '用户名不存在'; return; }
   if (user.passwordHash !== pwHash) { errEl.textContent = '密码错误'; return; }
-
   setSession(username);
   currentUser = username;
   state = user.state;
-  toast('👋 欢迎回来，' + username);
+  toast('👋 欢迎回来，' + username + ' (离线模式)');
   showAppView();
 }
 
@@ -615,7 +670,7 @@ function showAuthView() {
   document.getElementById('view-auth').style.display = 'flex';
 }
 
-function showAppView() {
+async function showAppView() {
   hideAll();
   document.getElementById('nav-username').textContent = currentUser;
   const admin = isAdmin();
@@ -633,13 +688,13 @@ function showAdminView() {
   renderAdmin();
 }
 
-function switchView(target) {
+async function switchView(target) {
   if (target === 'admin') {
     if (!isAdmin()) { toast('⚠️ 无管理员权限'); return; }
     showAdminView();
   } else if (target === 'game') {
-    loadCurrentUser();
-    showAppView();
+    await loadCurrentUser();
+    await showAppView();
   }
 }
 
@@ -833,15 +888,16 @@ function getSortedUsers() {
   return Object.values(users).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
 }
 
-async function fetchUsersFromAPI() {
-  const data = await apiCall('/api/users');
-  if (data && data.users) return Object.values(data.users);
-  return null;
-}
 
 async function renderAdmin() {
-  const apiUsers = apiOnline ? await fetchUsersFromAPI() : null;
-  const users = apiUsers || getSortedUsers();
+  let users;
+  if (apiOnline) {
+    const apiData = await apiCall('/api/users');
+    if (apiData && apiData.users) {
+      users = Object.values(apiData.users).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    }
+  }
+  if (!users) users = getSortedUsers();
   const tbody=document.getElementById('admin-user-table');
   const emptyEl=document.getElementById('admin-empty');
   document.getElementById('admin-user-count').textContent=users.length;
@@ -953,21 +1009,44 @@ function initStars() {
 // ====================== API PROBE ======================
 async function probeBackend() {
   const dot=document.getElementById('api-dot'), txt=document.getElementById('api-text');
-  try{await fetch('https://api.yswy.club/health',{mode:'no-cors',signal:AbortSignal.timeout(3000)});dot.className='dot online';txt.textContent='在线 (API)';}
-  catch(e){dot.className='dot offline';txt.textContent='离线模式';}
+  try {
+    const resp = await fetch(API_BASE + '/health', { signal: AbortSignal.timeout(3000) });
+    if (resp.ok) {
+      const data = await resp.json();
+      const wasOffline = !apiOnline;
+      apiOnline = true;
+      dot.className='dot online';
+      txt.textContent='在线 (API)';
+      console.log('Backend connected:', data);
+      if (wasOffline) toast('🌐 后端已连接，数据云端同步中');
+      if (currentUser && state) {
+        syncStateToAPI();
+        const apiResult = await apiCall('/api/user/' + encodeURIComponent(currentUser));
+        if (apiResult && apiResult.ok && apiResult.user) {
+          state = apiResult.user.state;
+          saveCurrentState();
+          renderAll();
+        }
+      }
+      return;
+    }
+  } catch(e) {}
+  apiOnline = false;
+  dot.className='dot offline';
+  txt.textContent='离线模式';
 }
 
 // ====================== COOLDOWN TICKER ======================
 function tickCooldowns() { if(document.getElementById('view-game').style.display!=='none') renderSkills(); }
 
 // ====================== INIT ======================
-function init() {
+async function init() {
   initStars();
   const username = getSession();
   if (username) {
-    if (loadCurrentUser()) {
+    if (await loadCurrentUser()) {
       if (isAdmin()) showAdminView();
-      else showAppView();
+      else await showAppView();
       return;
     }
   }
